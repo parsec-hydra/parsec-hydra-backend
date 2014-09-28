@@ -1,8 +1,33 @@
 <!DOCTYPE html>
 <html>
+    <head>
+        <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
+    </head>
     <body>
-    {% block content %}
+        <header class="container">
+            <div class="row">
+                <div class="col-md-6 col-md-offset-3">
+                    <h1>Parsec Hydra</h1>
+                    <ul class="nav nav-tabs">
+                        <li class=""><a href="{{ url_for('ping') }}">Home</a></li>
+                        <li class=""><a href="{{ url_for('services', device='A0:E5:E9:00:01:F2') }}">Services</a></li>
+                        <li class=""><a href="{{ url_for('characteristics', device='A0:E5:E9:00:01:F2') }}">Characteristics</a></li>
+                        <li class=""><a href="{{ url_for('notify', device='A0:E5:E9:00:01:F2', service='test', characteristic='test') }}">Notify</a></li>
+                    </ul>
+                </div>
+            </div>
+            
+        </header>
 
-    {% endblock %}
+        <section class="container">
+            <div class="row">
+                <div class="col-md-6 col-md-offset-3">
+                {% block content %}
+
+                {% endblock %}
+                </div>
+            </div>
+        </section>
+
     </body>
 </html>

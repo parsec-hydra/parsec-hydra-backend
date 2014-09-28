@@ -11,6 +11,7 @@ import subprocess
 import re
 import struct
 import threading
+import json
 
 from bluepy.bluepy.btle import Peripheral, Service, BTLEException
 
@@ -28,6 +29,7 @@ subprocess.call(['killall', '-9', 'bluepy-helper'])
 
 @app.before_request
 def check_device():
+    """connect the device if it's not paired"""
     if not 'peripheral' in app.config:
         try:
             app.logger.info('Pairing the device...')
@@ -49,7 +51,8 @@ def ping():
 @app.route('/<device>/services')
 def services(device):
     """list services available on the device"""
-    return jsonify({str(service.uuid): str(service) for service in app.config['peripheral'].getServices()})
+    return render_template('services.html', services=app.config['peripheral'].getServices())
+    # return jsonify({str(service.uuid): str(service) for service in app.config['peripheral'].getServices()})
 
 @app.route('/<device>/characteristics')
 def characteristics(device):
@@ -57,15 +60,16 @@ def characteristics(device):
     characteristics = {}
 
     for service in app.config['peripheral'].getServices():
-        if not str(service.uuid) in characteristics:
-            characteristics[str(service.uuid)] = {}
+        if not service.uuid in characteristics:
+            characteristics[service.uuid] = {}
         for characteristic in service.getCharacteristics():
             try:
-                characteristics[str(service.uuid)][str(characteristic.uuid)] = characteristic.read().encode('hex')
+                characteristics[service.uuid][characteristic.uuid] = characteristic.read().encode('hex')
             except BTLEException as e:
-                characteristics[str(service.uuid)][str(characteristic.uuid)] = repr(e)
+                characteristics[service.uuid][characteristic.uuid] = repr(e)
                 app.logger.error(e)
-    return jsonify(characteristics)
+
+    return render_template('characteristics.html', characteristics=characteristics)
 
 @app.route('/<device>/<service>/characteristics')
 def service_characteristics(device, service):
@@ -117,7 +121,7 @@ def notify(device, service, characteristic):
                 yaw, pitch, roll, z, y, x = tuple(struct.unpack(">H", b[i:i+2])[0] for i in range(12, len(b), 2))
                 app.logger.info('{} becomes {}, {}, {}, {}, {}, {}'.format(b, x, y, z, roll, pitch, yaw))
                 
-                socketio.send('{};{};{};{};{};{}'.format(x, y, z, roll, pitch, yaw));
+                socketio.send(json.dumps([x, y, z, roll, pitch, yaw]), True);
 
                 time.sleep(0.01)
 
@@ -127,12 +131,17 @@ def notify(device, service, characteristic):
     t.run = _run
     t.start()
 
-    return 'notified'
+    return render_template('notify.html')
 
 @app.route('/<device>/<service>/<characteristic>/unnotify')
 def unnotify():
     """disable notify to stop insanity"""
     pass
+
+@app.route('/message/<data>')
+def message(data):
+    socketio.send(data)
+    return 'Just sent ' + data
 
 # WebSocket communication
 @socketio.on('connect')
@@ -150,4 +159,5 @@ def message(data):
 
 if __name__ == '__main__':
     app.debug = True
-    socketio.run(app, host='0.0.0.0')
+    app.run(host='0.0.0.0', debug=True)
+    # socketio.run(app, host='0.0.0.0')

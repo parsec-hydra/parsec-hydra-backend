@@ -1,0 +1,15 @@
+{% extends 'parsec-hydra.html' %}
+
+{% block content %}
+
+    <h2>Services</h2>
+
+    <table class="table">
+    {% for service in services %}
+        <tr>
+            <td>{{ service }}</td>
+            <td>{{ service.uuid }}</td>
+        </tr>
+    {% endfor %}
+
+{% endblock %}

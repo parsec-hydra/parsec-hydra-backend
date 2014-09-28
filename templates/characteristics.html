@@ -1,0 +1,28 @@
+{% extends 'parsec-hydra.html' %}
+
+{% block content %}
+
+    <h2>Characteristics</h2>
+
+    {% for service in characteristics %}
+
+        <h3>{{ service }}</h3>
+
+        <table class="table">
+            <tr>
+                <th>uuid</th>
+                <th>value</th>
+            </tr>
+            {% for characteristic in characteristics[service] if characteristic %}
+
+                <tr>
+                    <td>{{ characteristic }}</td>
+                    <td>{{ characteristics[service][characteristic] }}</td>
+                </tr>
+
+            {% endfor %}
+        </table>
+
+    {% endfor %}
+
+{% endblock %}
