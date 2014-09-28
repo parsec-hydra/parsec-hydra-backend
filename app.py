@@ -1,6 +1,6 @@
 #!/usr/bin/env python2
 
-from flask import Flask, jsonify, g, abort
+from flask import Flask, jsonify, g, abort, render_template
 from flask.ext.socketio import SocketIO, send
 import flask.ext.socketio as socketio
 
@@ -16,33 +16,35 @@ from bluepy.bluepy.btle import Peripheral, Service, BTLEException
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = uuid.uuid4().hex
+app.config['devices'] = {} # device are mapped uuid => Peripheral
 socketio = SocketIO(app)
 
 NOD_SERVICE_MOTION6D_TYPE='net.openspatial.characteristic.pose6d'
 NOD_SERVICE_MOTION6D_UUID='00000205-0000-1000-8000-a0e5e9-000000'
 
+# kill annoying processes
 subprocess.call(['killall', '-9', 'gatttool'])
 subprocess.call(['killall', '-9', 'bluepy-helper'])
 
 @app.before_request
 def check_device():
     if not 'peripheral' in app.config:
-        app.logger.info('Pairing the device...')
-        app.config['peripheral'] = Peripheral('A0:E5:E9:00:01:F2')
-        app.logger.info('Paired the device!')
+        try:
+            app.logger.info('Pairing the device...')
+            app.config['peripheral'] = Peripheral('A0:E5:E9:00:01:F2')
+            app.logger.info('Paired the device!')
 
-        app.logger.info('Discovering services...')
-        services = app.config['peripheral'].discoverServices()
-        app.logger.info('Discovered services:', services)
-
-        # register the motion6d service
-        # motion6Dservice = Service(app.config['peripheral'], NOD_SERVICE_MOTION6D_UUID, 1, 10)
-        # app.logger.info(''.join(motion6Dservice.getCharacteristics()))
+            app.logger.info('Discovering services...')
+            services = app.config['peripheral'].discoverServices()
+            app.logger.info('Discovered services:', services)
+        except BTLEException as b:
+            app.logger.error(b)
+            abort(503)
 
 @app.route('/')
-def home():
+def ping():
     """ping the web application"""
-    return 'Hello world sent at ' + str(time.time())
+    return render_template('ping.html', time=time.time())
 
 @app.route('/<device>/services')
 def services(device):
@@ -115,10 +117,13 @@ def notify(device, service, characteristic):
                 yaw, pitch, roll, z, y, x = tuple(struct.unpack(">H", b[i:i+2])[0] for i in range(12, len(b), 2))
                 app.logger.info('{} becomes {}, {}, {}, {}, {}, {}'.format(b, x, y, z, roll, pitch, yaw))
                 
-                socketio.send('{};{};{};{};{};{}'.format(x, y, z, roll, pitch, yaw))
+                socketio.send('{};{};{};{};{};{}'.format(x, y, z, roll, pitch, yaw));
+
+                time.sleep(0.01)
 
     # threading this code..
     t = threading.Thread()
+    t.daemon = True
     t.run = _run
     t.start()
 
