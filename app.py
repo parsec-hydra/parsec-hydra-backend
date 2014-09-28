@@ -141,11 +141,11 @@ def connect(data):
     emit('yo', {'data': 'Connected'})
 
 @socketio.on('disconnect')
-def disconnect(data):
-    app.logger.info('%s has disconnected.', data)
+def disconnect():
+    app.logger.info('%s has disconnected.')
 
 @socketio.on('message')
-def message():
+def message(data):
     app.logger.info('Received a message containing: %s', data)
 
 if __name__ == '__main__':
