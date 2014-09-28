@@ -1,8 +1,16 @@
+#!/usr/bin/env python2
+
 from flask import Flask, jsonify, g, abort
-from flask.ext.socketio import SocketIO, emit
+from flask.ext.socketio import SocketIO, send
+import flask.ext.socketio as socketio
+
 import numpy
 import time
 import uuid
+import subprocess
+import re
+import struct
+import threading
 
 from bluepy.bluepy.btle import Peripheral, Service, BTLEException
 
@@ -12,6 +20,9 @@ socketio = SocketIO(app)
 
 NOD_SERVICE_MOTION6D_TYPE='net.openspatial.characteristic.pose6d'
 NOD_SERVICE_MOTION6D_UUID='00000205-0000-1000-8000-a0e5e9-000000'
+
+subprocess.call(['killall', '-9', 'gatttool'])
+subprocess.call(['killall', '-9', 'bluepy-helper'])
 
 @app.before_request
 def check_device():
@@ -75,8 +86,47 @@ def read(device, service, characteristic):
     return app.config['peripheral'].getServiceByUUID(service).getCharacteristics(characteristic)[0].read().encode('hex')
 
 @app.route('/<device>/<service>/<characteristic>/notify')
-def notify(service, characteristic):
+def notify(device, service, characteristic):
     """enable notify mode for a given characteristic"""
+
+    # disconnect the peripheral
+    app.config['peripheral'].disconnect()
+
+    def _run():
+        child = subprocess.Popen(['./gatttool', '--device=' + device, '--adapter=hci0', '--interactive'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)     
+
+        # enable notifications :)
+        child.stdin.write("connect\n")
+        child.stdin.flush()
+
+        # wait until the connection is successful
+        time.sleep(2)
+
+        # enable notifications
+        child.stdin.write("char-write-req 0x004c 0100\n")
+        child.stdin.flush()
+
+        matcher = re.compile('Notification handle = 0x004b value: ([0-9a-f ]+)')
+
+        while child.poll() is None:
+            groups = matcher.search(child.stdout.readline())
+            if groups:
+                b = groups.group(1).replace(' ', '')
+                yaw, pitch, roll, z, y, x = tuple(struct.unpack(">H", b[i:i+2])[0] for i in range(12, len(b), 2))
+                app.logger.info('{} becomes {}, {}, {}, {}, {}, {}'.format(b, x, y, z, roll, pitch, yaw))
+                
+                socketio.send('{};{};{};{};{};{}'.format(x, y, z, roll, pitch, yaw))
+
+    # threading this code..
+    t = threading.Thread()
+    t.run = _run
+    t.start()
+
+    return 'notified'
+
+@app.route('/<device>/<service>/<characteristic>/unnotify')
+def unnotify():
+    """disable notify to stop insanity"""
     pass
 
 # WebSocket communication
@@ -95,5 +145,4 @@ def message():
 
 if __name__ == '__main__':
     app.debug = True
-    app.run(host='0.0.0.0', debug=True)
-    #socketio.run(app, host='0.0.0.0')
+    socketio.run(app, host='0.0.0.0')
