@@ -2,6 +2,8 @@ Parser Hydra
 ============
 Cool stuff using the Nod ring.
 
+[Presentation](https://docs.google.com/presentation/d/11Wawv21vLjM40EVG0sK-bvuBOjdmjVHvc-LBMAJQ1FU/edit?usp=sharing)
+
 Nod ring Bluetooth specification
 --------------------------------
 The full Bluetooth specification is 
