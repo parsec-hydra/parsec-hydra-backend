@@ -2,64 +2,47 @@ from flask import Flask, jsonify, g
 from flask.ext.socketio import SocketIO, emit
 import numpy
 import time
+import uuid
+import json
 
-from device import KeyboardDevice, BluetoothDevice, MouseDevice
-
-from os import environ
+from bluepy.bluepy.btle import Peripheral, Service
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'secret'
+app.config['SECRET_KEY'] = uuid.uuid4().hex
 socketio = SocketIO(app)
 
-@app.route('/<device>(/<coordinate>)')
-def acceleration(device, coordinate = None):
-    pass
+NOD_SERVICE_MOTION6D_UUID='00000205-0000-1000-8000-a0e5e9-000000'
 
-@app.route('/ping')
+@app.before_first_request
+def initialize_devices():
+    """make sure devices dict is initialized"""
+    app.logger.info('Pairing the device...')
+    g.peripheral = Peripheral('A0:E5:E9:00:01:F2')
+    app.logger.info('Paired the device!')
+
+    # register the motion6d service
+    motion6Dservice = Service(g.peripheral, NOD_SERVICE_MOTION6D_UUID, 1, 10)
+    app.logger.info(''.join(motion6Dservice.getCharacteristics()))
+
+@app.route('/')
 def ping():
     """ping the web application"""
     return 'Hello world sent at ' + str(time.time())
 
-@app.before_first_request
-def initialize_devices():
-    g.devices = []
-
-@app.route('/devices')
-@app.route('/devices/<state>')
-def devices(state=None):
-    """list devices available"""
-    devices = []
-
-    if state == 'connected':
-        return jsonify(g.devices)
-
-    providers = {KeyboardDevice, BluetoothDevice, MouseDevice}
-
-    for provider in providers:
-        devices.extend(provider.scan())
-
-    return jsonify({d.identifier: str(d) for d in devices})
-
-@app.route('/<device>/connect')
-def connect(device):
-    """connect a given device"""
-    g.device = device
-
-@app.route('/<device>(/<coordinate>)')
-def listen(device):
-    pass
-
-@socketio.on('ping')
-def ping_websocket():
-    """ping the websocket"""
-    emit('Hello world sent at ' + str(time.time()))
-
+# WebSocket communication
 @socketio.on('connect')
-def test_connect():
-    app.logger.info('%s has connected', )
+def connect(data):
+    app.logger.info('%s has connected', data)
     emit('yo', {'data': 'Connected'})
 
+@socketio.on('disconnect')
+def disconnect(data):
+    app.logger.info('%s has disconnected.', data)
+
+@socketio.on('message')
+def message():
+    app.logger.info('Received a message containing: %s', data)
+
 if __name__ == '__main__':
-    #app.run(host='0.0.0.0', debug=True)
     app.debug = True
     socketio.run(app, host='0.0.0.0')

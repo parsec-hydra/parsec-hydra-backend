@@ -1,5 +1,6 @@
 import uuid
 import numpy
+import bluetooth
 
 class GyroscopeEvent():
     def __init__(self, x, y, z):
@@ -58,6 +59,7 @@ class MouseDevice(Device):
 
     @staticmethod
     def scan():
+        """there is only one mouse available and it is this device"""
         return [MouseDevice(uuid.uuid4().hex)]
 
     def normalize(self):
@@ -74,6 +76,7 @@ class MouseDevice(Device):
 
             def move(self, x, y):
                 x, y = x - device.initial_position[0], y - device.initial_position[0]
+                
                 print('new coordinates {} {}'.format(x, y))
 
         c = ClickListener()
@@ -82,34 +85,27 @@ class MouseDevice(Device):
 
         thread.start()
 
-from Xlib import X, display
-
-class KeyboardDevice(Device):
-    display = display.Display()
-
-    @staticmethod
-    def scan():
-        return [KeyboardDevice(uuid.uuid4().hex)]
-
-    def normalize():
-        # already normalized
-        pass
-
-    def listen(self):
-        pass
-
-import bluetooth
-
 class BluetoothDevice(Device):
-    @staticmethod
-    def scan():
-        return [BluetoothDevice(device) for device in bluetooth.discover_devices()]
+    NOD_SERVICE_TYPE='net.openspatial.service.open_spatial'
+    NOD_SERVICE_UUID='00000002-0000-1000-8000-a0e5e9000000'
 
+    @classmethod
+    def scan(cls):
+        devices = []
+        for result in bluetooth.find_service(cls.NOD_SERVICE_TYPE, cls.NOD_SERVICE_UUID):
+            devices[result['host']] = result
+
+        return devices
+
+    def listen():
+        pass
+    
     def connect(self):
         pass
 
+from bluepy.bluepy.btle import Peripheral
 
-if __name__ == '__main__':
-    mouse = MouseDevice('test')
-    mouse.normalize()
-    mouse.listen()
+
+
+
+    print(BluetoothDevice.scan())
